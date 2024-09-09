@@ -10,6 +10,10 @@ import (
 	"sync"
 )
 
+var banner string = "\n\n┏┓┏┓┏┓  ┏┓┏┓\n┗┫ ┫┗┫━━┃ ┏┛     Alpha 1.0\n┗┛┗┛┗┛  ┗┛┗━     github.com/nxvertime"
+
+//var banner string = " ___  ____  ___         ___  ____ \n/ _ \\( __ \\/ _ \\  ___  / __)(___ \\ \n\\__  )(__ (\\__  )(___)( (__  / __/ Alpha 1.0\n(___/(____/(___/       \\___)(____) github.com/nxertime\n"
+
 var emojiMap = map[string]string{
 	"listenning": "📡 ",
 	"info":       "ℹ️ ",
@@ -48,6 +52,8 @@ var mutex sync.Mutex
 var commandChannel = make(chan string) // Channel pour transmettre les commandes
 
 func main() {
+	fmt.Println(banner)
+	fmt.Println("========================================")
 	server, err := net.Listen("tcp", ":4444")
 	if err != nil {
 		panic(err)
@@ -117,10 +123,10 @@ func processCli(connection net.Conn, clientID int) {
 		}
 		if command == "help" {
 			fmt.Println(getEmoji("help") + "Sure! Here's available commands:")
-			fmt.Println("    help: display this message")
-			fmt.Println("    list: display connected clients")
-			fmt.Println("    focus <client_id>: focusing on one client")
-			fmt.Println("    defocus: de-focusing from current client")
+			fmt.Println("      - help: display this message")
+			fmt.Println("      - list: display connected clients")
+			fmt.Println("      - focus <client_id>: focusing on one client")
+			fmt.Println("      - defocus: de-focusing from current client")
 
 		}
 

