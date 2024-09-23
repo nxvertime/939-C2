@@ -1,4 +1,4 @@
-# ⚠️UPDATED VERSION: (https://github.com/nxvertime/narcissist_c2)[https://github.com/nxvertime/narcissist_c2]⚠️
+# ⚠️UPDATED VERSION: https://github.com/nxvertime/narcissist_c2⚠️
 # 939 C2
 
 A Command and Control Server from scratch and my first project written in golang.
